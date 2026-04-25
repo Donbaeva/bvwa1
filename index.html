@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Smart Deadline Tracker</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "primary":"#3525cd","primary-container":"#4f46e5","on-primary":"#ffffff",
+        "secondary":"#006c49","secondary-container":"#6cf8bb","on-secondary":"#ffffff","on-secondary-container":"#00714d",
+        "tertiary":"#684000","tertiary-fixed":"#ffddb8","on-tertiary-fixed":"#2a1700","on-tertiary-fixed-variant":"#653e00",
+        "surface":"#fcf8ff","surface-container":"#f0ecf9","surface-container-low":"#f5f2ff",
+        "surface-container-high":"#eae6f4","surface-container-highest":"#e4e1ee","surface-container-lowest":"#ffffff",
+        "on-surface":"#1b1b24","on-surface-variant":"#464555",
+        "error":"#ba1a1a","error-container":"#ffdad6","on-error":"#ffffff","on-error-container":"#93000a",
+        "outline":"#777587","outline-variant":"#c7c4d8",
+        /* dark tokens */
+        "d-surface":"#131318","d-surface-c":"#1f1f28","d-surface-cl":"#1b1b23",
+        "d-surface-ch":"#292932","d-surface-clo":"#0e0e16",
+        "d-on-surface":"#e5e1f0","d-on-surface-v":"#c7c4d8",
+        "d-primary":"#c3c0ff","d-error":"#ffb4ab",
+      },
+      borderRadius:{"DEFAULT":"0.5rem","lg":"0.75rem","xl":"1rem","2xl":"1.5rem","full":"9999px"},
+      fontFamily:{"sans":["Inter","sans-serif"]}
+    }
+  }
+}
+</script>
+<style>
+/* ── Base ───────────────────────────────────── */
+*{box-sizing:border-box}
+body{font-family:'Inter',sans-serif;transition:background 0.25s,color 0.25s}
+.material-symbols-outlined{font-variation-settings:'FILL' 0,'wght' 400,'GRAD' 0,'opsz' 24}
+
+/* ── Light surfaces ─────────────────────────── */
+body{background:#fcf8ff;color:#1b1b24}
+.bg-surf    {background:#fcf8ff}
+.bg-surf-c  {background:#f0ecf9}
+.bg-surf-cl {background:#f5f2ff}
+.bg-surf-ch {background:#eae6f4}
+.bg-surf-clo{background:#ffffff}
+.text-os    {color:#1b1b24}
+.text-osv   {color:#464555}
+.border-ov  {border-color:#c7c4d8}
+.glass-nav  {background:rgba(252,248,255,0.9);backdrop-filter:blur(24px)}
+
+/* ── Dark mode overrides ────────────────────── */
+.dark body  {background:#131318;color:#e5e1f0}
+.dark .bg-surf    {background:#131318}
+.dark .bg-surf-c  {background:#1f1f28}
+.dark .bg-surf-cl {background:#1b1b23}
+.dark .bg-surf-ch {background:#292932}
+.dark .bg-surf-clo{background:#1f1f28}
+.dark .text-os    {color:#e5e1f0}
+.dark .text-osv   {color:#c7c4d8}
+.dark .border-ov  {border-color:#34333d}
+.dark .glass-nav  {background:rgba(19,19,24,0.9);backdrop-filter:blur(24px)}
+.dark .text-indigo-900{color:#c3c0ff}
+/* cards */
+.dark .shadow-ambient{box-shadow:0 4px 20px rgba(0,0,0,0.35)}
+/* inputs */
+.dark .ifield{background:rgba(255,255,255,0.06)!important;color:#e5e1f0!important;border-color:rgba(255,255,255,0.08)!important}
+.dark .ifield:focus{background:rgba(255,255,255,0.1)!important;border-color:#c3c0ff!important;box-shadow:0 0 0 3px rgba(195,192,255,0.12)!important}
+.dark .ifield::placeholder{color:#777587!important}
+/* sidebar */
+.dark aside{background:#1f1f28}
+/* hover states */
+.dark .hover-ch:hover{background:#292932}
+/* select */
+.dark select.ifield option{background:#1f1f28;color:#e5e1f0}
+/* toggle track */
+.dark .toggle-bg{background:#34333d}
+/* scrollbar */
+.dark ::-webkit-scrollbar-thumb{background:#34333d}
+
+/* ── Shadows ────────────────────────────────── */
+.shadow-ambient{box-shadow:0px 4px 20px rgba(27,27,36,0.07)}
+.shadow-ambient-lg{box-shadow:0px 16px 48px rgba(27,27,36,0.11)}
+.dark .shadow-ambient-lg{box-shadow:0px 16px 48px rgba(0,0,0,0.4)}
+
+/* ── Layout ─────────────────────────────────── */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#c7c4d8;border-radius:10px}
+.pg{display:none}.pg.on{display:flex}
+.screen{display:none}.screen.active{display:block;animation:fadeIn .2s ease}
+#modal-overlay{display:none}#modal-overlay.open{display:flex}
+#user-dd{display:none}#user-dd.open{display:block}
+
+/* ── Animations ─────────────────────────────── */
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.fade-in{animation:fadeIn .3s ease forwards}
+.task-enter{animation:slideUp .2s ease forwards}
+.shake{animation:shake .28s ease}
+.spin{animation:spin .8s linear infinite}
+
+/* ── Input field ────────────────────────────── */
+.ifield{
+  width:100%;background:rgba(240,236,249,0.8);border:1.5px solid transparent;
+  border-radius:12px;padding:11px 15px;font-size:.875rem;outline:none;
+  transition:all .18s;color:#1b1b24
+}
+.ifield:focus{background:#fff;border-color:#3525cd;box-shadow:0 0 0 4px rgba(53,37,205,.08)}
+.ifield::placeholder{color:#777587}
+select.ifield{cursor:pointer}
+
+/* ── Auth card ──────────────────────────────── */
+.auth-bg{
+  background:
+    radial-gradient(ellipse at 15% 65%,rgba(53,37,205,.08) 0%,transparent 55%),
+    radial-gradient(ellipse at 85% 15%,rgba(79,70,229,.06) 0%,transparent 50%),
+    #fcf8ff
+}
+.dark .auth-bg{
+  background:
+    radial-gradient(ellipse at 15% 65%,rgba(53,37,205,.18) 0%,transparent 55%),
+    radial-gradient(ellipse at 85% 15%,rgba(79,70,229,.12) 0%,transparent 50%),
+    #131318
+}
+.auth-tab{transition:all .18s;cursor:pointer;padding:7px 20px;border-radius:8px;font-weight:700;font-size:.78rem;color:#464555}
+.auth-tab.active{background:#fff;color:#3525cd;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.dark .auth-tab.active{background:#2a2a38;color:#c3c0ff}
+.dark .auth-tab{color:#c7c4d8}
+
+/* ── Avatar ─────────────────────────────────── */
+.uavatar{
+  width:32px;height:32px;border-radius:50%;
+  background:linear-gradient(135deg,#3525cd,#4f46e5);
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-weight:800;font-size:.72rem;flex-shrink:0
+}
+
+/* ── Priority dots ──────────────────────────── */
+.dot-high{background:#ba1a1a}
+.dot-medium{background:#684000}
+.dot-low{background:#006c49}
+
+/* ── Lang flag buttons ──────────────────────── */
+.lang-btn{
+  display:flex;align-items:center;gap:6px;padding:6px 12px;border-radius:8px;
+  font-size:.78rem;font-weight:700;cursor:pointer;transition:all .18s;border:none;
+  background:transparent;color:#464555
+}
+.lang-btn:hover{background:#f0ecf9}
+.lang-btn.active{background:#3525cd;color:#fff}
+.dark .lang-btn{color:#c7c4d8}
+.dark .lang-btn:hover{background:#292932}
+.dark .lang-btn.active{background:#4f46e5;color:#fff}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     AUTH PAGE
+══════════════════════════════════════════ -->
+<main id="pg-auth" class="pg on auth-bg min-h-screen items-center justify-center p-4">
+  <div class="w-full max-w-sm fade-in">
+    <!-- Переключатель языка на странице авторизации -->
+<div class="flex justify-center mb-5">
+  <div class="flex items-center gap-1 bg-surf-clo rounded-xl p-1 shadow-ambient">
+    <button class="lang-btn px-2 py-1" data-lang="cs">🇨🇿</button>
+    <button class="lang-btn px-2 py-1" data-lang="ru">🇷🇺</button>
+    <button class="lang-btn px-2 py-1" data-lang="en">🇬🇧</button>
+    <button class="lang-btn px-2 py-1" data-lang="ky">🇰🇬</button>
+    <button class="lang-btn px-2 py-1" data-lang="kz">🇰🇿</button>
+  </div>
+</div>
+    <div class="text-center mb-7">
+      <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl shadow-ambient-lg mb-4" style="background:linear-gradient(135deg,#3525cd,#4f46e5)">
+        <span class="material-symbols-outlined text-white text-[26px]">task_alt</span>
+      </div>
+      <h1 class="text-2xl font-black text-os tracking-tight">Smart Deadline</h1>
+      <p class="text-osv text-[.65rem] font-bold mt-1 tracking-widest uppercase">Tracker</p>
+    </div>
+
+    <div class="bg-surf-clo rounded-2xl shadow-ambient-lg overflow-hidden">
+      <div class="flex items-center gap-1 bg-surf-c p-1 m-4 rounded-xl">
+        <button id="tab-login" class="auth-tab active flex-1 text-center" onclick="switchTab('login')" data-i18n="auth.login"></button>
+        <button id="tab-register" class="auth-tab flex-1 text-center" onclick="switchTab('register')" data-i18n="auth.register"></button>
+      </div>
+
+      <!-- LOGIN -->
+      <form id="form-login" class="px-5 pb-5 space-y-3" onsubmit="return false;">
+        <div>
+          <label class="text-[.6rem] font-bold text-osv uppercase tracking-widest block mb-1.5">Email</label>
+          <input id="li-email" type="email" class="ifield" autocomplete="email" data-i18n-ph="auth.emailPh"/>
+        </div>
+        <div>
+          <label class="text-[.6rem] font-bold text-osv uppercase tracking-widest block mb-1.5" data-i18n="auth.password"></label>
+          <div class="relative">
+            <input id="li-pass" type="password" placeholder="••••••••" class="ifield pr-10" autocomplete="current-password"/>
+            <button type="button" onclick="toggleVis('li-pass',this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-osv">
+              <span class="material-symbols-outlined text-[18px]">visibility</span>
+            </button>
+          </div>
+        </div>
+        <p id="li-err" class="text-error text-xs font-medium hidden"></p>
+        <button onclick="doLogin()" class="w-full py-3 text-white rounded-xl font-bold text-sm hover:opacity-90 active:scale-[.98] transition-all shadow-ambient mt-1" style="background:linear-gradient(135deg,#3525cd,#4f46e5)" data-i18n="auth.loginBtn"></button>
+      </form>
+
+      <!-- REGISTER -->
+      <form id="form-register" class="px-5 pb-5 space-y-3 hidden" onsubmit="return false;">
+        <div>
+          <label class="text-[.6rem] font-bold text-osv uppercase tracking-widest block mb-1.5" data-i18n="auth.name"></label>
+          <input id="ri-name" type="text" class="ifield" autocomplete="name" data-i18n-ph="auth.namePh"/>
+        </div>
+        <div>
+          <label class="text-[.6rem] font-bold text-osv uppercase tracking-widest block mb-1.5">Email</label>
+          <input id="ri-email" type="email" class="ifield" autocomplete="email" data-i18n-ph="auth.emailPh"/>
+        </div>
+        <div>
+          <label class="text-[.6rem] font-bold text-osv uppercase tracking-widest block mb-1.5" data-i18n="auth.password"></label>
+          <div class="relative">
+            <input id="ri-pass" type="password" placeholder="••••••••" class="ifield pr-10" autocomplete="new-password"/>
+            <button type="button" onclick="toggleVis('ri-pass',this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-osv">
+              <span class="material-symbols-outlined text-[18px]">visibility</span>
+            </button>
+          </div>
+        </div>
+        <div>
+          <label class="text-[.6rem] font-bold text-osv uppercase tracking-widest block mb-1.5" data-i18n="auth.confirmPassword"></label>
+          <input id="ri-pass2" type="password" placeholder="••••••••" class="ifield" autocomplete="new-password"/>
+        </div>
+        <p id="ri-err" class="text-error text-xs font-medium hidden"></p>
+        <button onclick="doRegister()" class="w-full py-3 text-white rounded-xl font-bold text-sm hover:opacity-90 active:scale-[.98] transition-all shadow-ambient mt-1" style="background:linear-gradient(135deg,#3525cd,#4f46e5)" data-i18n="auth.registerBtn"></button>
+      </form>
+
+    </div>
+    <p class="text-center text-[.6rem] text-osv/40 font-medium mt-5" data-i18n="auth.localNote"></p>
+  </div>
+</main>
+
+<!-- ══════════════════════════════════════════
+     APP PAGE
+══════════════════════════════════════════ -->
+<div id="pg-app" class="pg hidden flex-col min-h-screen bg-surf">
+
+  <!-- SIDEBAR (desktop) -->
+  <aside class="h-screen w-60 fixed left-0 top-0 bg-surf-c flex flex-col p-3.5 z-50 hidden md:flex">
+    <div class="px-3 py-5 mb-1">
+      <h1 class="text-base font-black text-indigo-900 leading-tight tracking-tight">Smart Deadline</h1>
+      <p class="text-[.58rem] font-bold text-osv uppercase tracking-[.18em] mt-0.5">Tracker</p>
+    </div>
+    <nav class="flex-1 space-y-0.5">
+      <a data-sc="dashboard" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm cursor-pointer transition-all text-osv hover-ch" href="#">
+        <span class="material-symbols-outlined text-[19px]">dashboard</span>
+        <span data-i18n="nav.dashboard"></span>
+      </a>
+      <a data-sc="tasks" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm cursor-pointer transition-all text-osv hover-ch" href="#">
+        <span class="material-symbols-outlined text-[19px]">checklist</span>
+        <span data-i18n="nav.tasks"></span>
+      </a>
+      <a data-sc="calendar" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm cursor-pointer transition-all text-osv hover-ch" href="#">
+        <span class="material-symbols-outlined text-[19px]">calendar_month</span>
+        <span data-i18n="nav.calendar"></span>
+      </a>
+      <a data-sc="pdf" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm cursor-pointer transition-all text-osv hover-ch" href="#">
+        <span class="material-symbols-outlined text-[19px]">picture_as_pdf</span>
+        <span data-i18n="nav.pdf"></span>
+      </a>
+      <a data-sc="settings" class="nav-link flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm cursor-pointer transition-all text-osv hover-ch" href="#">
+        <span class="material-symbols-outlined text-[19px]">settings</span>
+        <span data-i18n="nav.settings"></span>
+      </a>
+    </nav>
+    <div class="border-t border-ov/20 pt-3 mt-1 space-y-2">
+      <div class="flex items-center gap-2.5 px-2.5 py-2 rounded-xl">
+        <div id="sb-avatar" class="uavatar">?</div>
+        <div class="flex-1 min-w-0">
+          <p id="sb-name" class="text-xs font-bold text-os truncate"></p>
+          <p id="sb-email" class="text-[.58rem] text-osv truncate"></p>
+        </div>
+        <button onclick="doLogout()" class="w-6 h-6 flex items-center justify-center rounded-full hover:bg-error-container hover:text-on-error-container text-osv transition-colors">
+          <span class="material-symbols-outlined text-[14px]">logout</span>
+        </button>
+      </div>
+      <button id="btn-new-sb" class="w-full py-2.5 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-1.5 shadow-ambient hover:opacity-90 active:scale-[.98] transition-all" style="background:linear-gradient(135deg,#3525cd,#4f46e5)">
+        <span class="material-symbols-outlined text-[17px]">add</span>
+        <span data-i18n="task.newTask"></span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="md:ml-60 flex-1 flex flex-col pb-20 md:pb-0 bg-surf">
+
+    <!-- TOP BAR -->
+    <header class="sticky top-0 z-40 glass-nav flex justify-between items-center w-full px-4 md:px-7 py-3 border-b border-ov/20">
+      <h2 id="page-title" class="text-sm font-bold text-indigo-900 tracking-tight"></h2>
+      <div class="flex items-center gap-2">
+        <div class="relative group hidden sm:block">
+          <span class="material-symbols-outlined absolute left-2.5 top-1/2 -translate-y-1/2 text-[16px] text-osv group-focus-within:text-primary transition-colors">search</span>
+          <input id="search-input" class="ifield pl-8 pr-3 py-1.5 text-xs rounded-full" style="width:170px;padding-top:7px;padding-bottom:7px" data-i18n-ph="task.searchPh" type="text"/>
+        </div>
+        <button id="theme-btn" class="w-8 h-8 rounded-full flex items-center justify-center text-osv hover-ch transition-colors">
+          <span id="theme-icon" class="material-symbols-outlined text-[18px]">dark_mode</span>
+        </button>
+        <div class="relative">
+          <button id="user-menu-btn" onclick="toggleDD()">
+            <div id="tb-avatar" class="uavatar cursor-pointer">?</div>
+          </button>
+          <div id="user-dd" class="absolute right-0 top-10 bg-surf-clo rounded-xl shadow-ambient-lg w-48 z-50 overflow-hidden border border-ov/20">
+            <div class="px-3.5 py-2.5 border-b border-ov/20">
+              <p id="dd-name" class="text-xs font-bold text-os"></p>
+              <p id="dd-email" class="text-[.6rem] text-osv truncate mt-0.5"></p>
+            </div>
+            <button onclick="doLogout()" class="w-full flex items-center gap-2 px-3.5 py-2.5 text-sm font-medium text-osv hover:bg-error-container hover:text-on-error-container transition-colors">
+              <span class="material-symbols-outlined text-[16px]">logout</span>
+              <span data-i18n="auth.logout"></span>
+            </button>
+          </div>
+        </div>
+        <button id="btn-new-top" class="md:hidden w-8 h-8 rounded-full flex items-center justify-center text-white shadow-sm" style="background:#3525cd">
+          <span class="material-symbols-outlined text-[18px]">add</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- ── DASHBOARD ── -->
+    <section id="sc-dashboard" class="screen active p-4 md:p-7 max-w-4xl w-full mx-auto space-y-6">
+      <div>
+        <h3 id="dash-greeting" class="text-3xl md:text-4xl font-black text-os leading-tight tracking-tighter"></h3>
+        <p id="dash-sub" class="text-osv font-medium mt-1.5 text-sm"></p>
+      </div>
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div class="bg-surf-clo p-4 rounded-2xl shadow-ambient">
+          <p class="text-[.58rem] font-bold text-osv uppercase tracking-widest" data-i18n="dash.total"></p>
+          <p id="st-total" class="text-3xl font-black text-os mt-1">0</p>
+        </div>
+        <div class="bg-surf-clo p-4 rounded-2xl shadow-ambient">
+          <p class="text-[.58rem] font-bold text-osv uppercase tracking-widest" data-i18n="dash.done"></p>
+          <p id="st-done" class="text-3xl font-black mt-1" style="color:#006c49">0</p>
+        </div>
+        <div class="bg-surf-clo p-4 rounded-2xl shadow-ambient">
+          <p class="text-[.58rem] font-bold text-osv uppercase tracking-widest" data-i18n="dash.overdue"></p>
+          <p id="st-over" class="text-3xl font-black mt-1" style="color:#ba1a1a">0</p>
+        </div>
+        <div class="p-4 rounded-2xl text-white" style="background:linear-gradient(135deg,#3525cd,#4f46e5)">
+          <p class="text-[.58rem] font-bold text-white/70 uppercase tracking-widest" data-i18n="dash.thisWeek"></p>
+          <p id="st-week" class="text-3xl font-black mt-1">0</p>
+        </div>
+      </div>
+      <div>
+        <p class="text-[.6rem] font-bold text-osv uppercase tracking-widest mb-3" data-i18n="dash.upcoming"></p>
+        <div id="dash-upcoming"></div>
+      </div>
+    </section>
+
+    <!-- ── TASKS ── -->
+    <section id="sc-tasks" class="screen p-4 md:p-7 max-w-4xl w-full mx-auto space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <h3 class="text-3xl font-black text-os tracking-tighter" data-i18n="nav.tasks"></h3>
+        <button id="btn-new-tasks" class="hidden sm:flex items-center gap-1.5 px-4 py-2 text-white rounded-xl font-bold text-sm shadow-ambient hover:opacity-90 transition-all" style="background:linear-gradient(135deg,#3525cd,#4f46e5)">
+          <span class="material-symbols-outlined text-[16px]">add</span>
+          <span data-i18n="task.newTask"></span>
+        </button>
+      </div>
+      <div class="flex flex-wrap gap-1.5">
+        <button data-f="all"     class="fb px-3.5 py-1.5 rounded-full font-bold text-xs text-white" style="background:#3525cd" data-i18n="filter.all"></button>
+        <button data-f="pending" class="fb px-3.5 py-1.5 rounded-full font-bold text-xs bg-surf-ch text-osv" data-i18n="filter.pending"></button>
+        <button data-f="done"    class="fb px-3.5 py-1.5 rounded-full font-bold text-xs bg-surf-ch text-osv" data-i18n="filter.done"></button>
+        <button data-f="urgent"  class="fb px-3.5 py-1.5 rounded-full font-bold text-xs bg-surf-ch text-osv" data-i18n="filter.urgent"></button>
+        <button data-f="overdue" class="fb px-3.5 py-1.5 rounded-full font-bold text-xs bg-surf-ch text-osv" data-i18n="filter.overdue"></button>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="text-[.58rem] font-bold text-osv uppercase tracking-widest" data-i18n="task.sortBy"></span>
+        <div class="flex bg-surf-c rounded-lg p-0.5 gap-0.5">
+          <button data-s="deadline" class="sb px-3 py-1.5 rounded-md bg-surf-clo text-primary text-xs font-bold shadow-sm" data-i18n="sort.deadline"></button>
+          <button data-s="priority" class="sb px-3 py-1.5 rounded-md text-osv text-xs font-bold" data-i18n="sort.priority"></button>
+          <button data-s="name"     class="sb px-3 py-1.5 rounded-md text-osv text-xs font-bold" data-i18n="sort.name"></button>
+        </div>
+      </div>
+      <div id="task-list" class="space-y-2"></div>
+      <div id="task-empty" class="hidden text-center py-14 text-osv">
+        <span class="material-symbols-outlined text-5xl block mb-3 opacity-20">inbox</span>
+        <p class="font-medium text-sm" data-i18n="task.empty"></p>
+      </div>
+    </section>
+
+    <!-- ── CALENDAR ── -->
+    <section id="sc-calendar" class="screen p-4 md:p-7 max-w-2xl w-full mx-auto space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-3xl font-black text-os tracking-tighter" data-i18n="nav.calendar"></h3>
+        <div class="flex items-center gap-1.5">
+          <button id="cal-prev" class="w-8 h-8 flex items-center justify-center rounded-lg bg-surf-ch hover-ch transition-colors">
+            <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+          </button>
+          <span id="cal-lbl" class="text-sm font-bold min-w-[130px] text-center text-os"></span>
+          <button id="cal-next" class="w-8 h-8 flex items-center justify-center rounded-lg bg-surf-ch hover-ch transition-colors">
+            <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+          </button>
+        </div>
+      </div>
+      <div class="bg-surf-clo rounded-2xl shadow-ambient overflow-hidden">
+        <div id="cal-header" class="grid grid-cols-7 border-b border-ov/20"></div>
+        <div id="cal-days" class="grid grid-cols-7"></div>
+      </div>
+      <div id="cal-day-box" class="hidden space-y-2">
+        <p id="cal-day-title" class="text-[.6rem] font-bold text-osv uppercase tracking-widest"></p>
+        <div id="cal-day-list" class="space-y-2"></div>
+      </div>
+    </section>
+
+    <!-- ── PDF IMPORT ── -->
+    <section id="sc-pdf" class="screen p-4 md:p-7 max-w-2xl w-full mx-auto space-y-4">
+      <div>
+        <h3 class="text-3xl font-black text-os tracking-tighter" data-i18n="nav.pdf"></h3>
+        <p class="text-osv text-sm mt-1" data-i18n="pdf.subtitle"></p>
+      </div>
+      <div id="pdf-drop" class="border-2 border-dashed border-ov rounded-2xl p-9 text-center cursor-pointer transition-all hover:border-primary" style="">
+        <span class="material-symbols-outlined text-5xl text-osv/30 block mb-3">upload_file</span>
+        <p class="font-bold text-os text-sm" data-i18n="pdf.dropTitle"></p>
+        <p class="text-osv text-xs mt-1" data-i18n="pdf.dropSub"></p>
+        <input id="pdf-inp" type="file" accept=".pdf,application/pdf" class="hidden"/>
+      </div>
+      <div id="pdf-prog" class="hidden">
+        <div class="flex items-center gap-2.5 mb-2">
+          <span class="material-symbols-outlined spin" style="color:#3525cd">progress_activity</span>
+          <p id="pdf-prog-txt" class="text-sm font-medium text-os"></p>
+        </div>
+        <div class="h-1.5 bg-surf-ch rounded-full overflow-hidden">
+          <div id="pdf-prog-bar" class="h-full rounded-full transition-all duration-500" style="width:0%;background:#3525cd"></div>
+        </div>
+      </div>
+      <div id="pdf-res" class="hidden space-y-3">
+        <div class="flex items-center justify-between">
+          <p class="text-[.6rem] font-bold text-osv uppercase tracking-widest" data-i18n="pdf.found"></p>
+          <button id="pdf-add-all" class="px-3 py-1.5 text-white rounded-lg font-bold text-xs hover:opacity-90 transition-all" style="background:#3525cd" data-i18n="pdf.addAll"></button>
+        </div>
+        <div id="pdf-list" class="space-y-2"></div>
+      </div>
+    </section>
+
+    <!-- ── SETTINGS ── -->
+    <section id="sc-settings" class="screen p-4 md:p-7 max-w-lg w-full mx-auto space-y-4">
+      <h3 class="text-3xl font-black text-os tracking-tighter" data-i18n="nav.settings"></h3>
+      <div class="bg-surf-clo rounded-2xl shadow-ambient overflow-hidden divide-y divide-ov/20">
+
+        <!-- Account -->
+        <div class="p-5">
+          <p class="text-[.58rem] font-bold text-osv uppercase tracking-widest mb-3" data-i18n="settings.account"></p>
+          <div class="flex items-center gap-3">
+            <div id="set-avatar" class="w-11 h-11 rounded-xl flex items-center justify-center text-white font-black text-lg" style="background:linear-gradient(135deg,#3525cd,#4f46e5)">?</div>
+            <div>
+              <p id="set-name" class="font-bold text-sm text-os"></p>
+              <p id="set-email" class="text-xs text-osv mt-0.5"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Language picker -->
+        <div class="p-5">
+          <p class="font-semibold text-sm text-os mb-3" data-i18n="settings.language"></p>
+          <div class="flex flex-wrap gap-2" id="lang-btns">
+            <button class="lang-btn" data-lang="cs">🇨🇿 Čeština</button>
+            <button class="lang-btn" data-lang="ru">🇷🇺 Русский</button>
+            <button class="lang-btn" data-lang="en">🇬🇧 English</button>
+            <button class="lang-btn" data-lang="ky">🇰🇬 Кыргызча</button>
+            <button class="lang-btn" data-lang="kz">🇰🇿 Қазақша</button>
+          </div>
+        </div>
+
+        <!-- Dark mode -->
+        <div class="flex items-center justify-between p-5">
+          <div>
+            <p class="font-semibold text-sm text-os" data-i18n="settings.darkMode"></p>
+            <p class="text-xs text-osv mt-0.5" data-i18n="settings.darkModeSub"></p>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input id="set-dark" type="checkbox" class="sr-only peer"/>
+            <div class="toggle-bg w-11 h-6 bg-surf-ch rounded-full transition-colors peer-checked:bg-primary" style="--tw-bg-opacity:1"></div>
+            <div class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform peer-checked:translate-x-5"></div>
+          </label>
+        </div>
+
+        <!-- Categories -->
+        <div class="p-5 space-y-3">
+          <p class="font-semibold text-sm text-os" data-i18n="settings.categories"></p>
+          <div id="set-cats" class="flex flex-wrap gap-1.5"></div>
+          <div class="flex gap-2">
+            <input id="cat-inp" type="text" class="flex-1 ifield" style="padding:8px 12px;border-radius:10px" data-i18n-ph="settings.newCatPh"/>
+            <button id="cat-add" class="px-3 py-2 text-white rounded-lg text-xs font-bold hover:opacity-90 transition-all" style="background:#3525cd" data-i18n="settings.addCat"></button>
+          </div>
+        </div>
+
+        <!-- Clear data -->
+        <div class="flex items-center justify-between p-5">
+          <div>
+            <p class="font-semibold text-sm text-os" data-i18n="settings.clearTitle"></p>
+            <p class="text-xs text-osv mt-0.5" data-i18n="settings.clearSub"></p>
+          </div>
+          <button id="clear-btn" class="px-3.5 py-2 bg-error-container text-on-error-container rounded-lg font-bold text-xs hover:opacity-90 transition-all" data-i18n="settings.clearBtn"></button>
+        </div>
+
+      </div>
+      <p class="text-center text-[.58rem] text-osv/35 font-bold uppercase tracking-widest">Smart Deadline Tracker · v1.0</p>
+    </section>
+
+  </main>
+
+  <!-- MOBILE NAV -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 glass-nav flex items-center justify-around px-2 z-50 border-t border-ov/20" style="height:62px">
+    <a data-sc="dashboard" class="mob-nav flex flex-col items-center gap-0.5 py-2 px-3 cursor-pointer text-osv transition-all" href="#">
+      <span class="material-symbols-outlined text-[20px]">dashboard</span>
+      <span class="text-[.5rem] font-bold uppercase" data-i18n="nav.dashboard"></span>
+    </a>
+    <a data-sc="tasks" class="mob-nav flex flex-col items-center gap-0.5 py-2 px-3 cursor-pointer text-osv transition-all" href="#">
+      <span class="material-symbols-outlined text-[20px]">checklist</span>
+      <span class="text-[.5rem] font-bold uppercase" data-i18n="nav.tasks"></span>
+    </a>
+    <button id="btn-fab" class="-mt-4 w-12 h-12 rounded-full flex items-center justify-center text-white shadow-lg border-4 border-surf hover:opacity-90 transition-all" style="background:#3525cd;box-shadow:0 4px 20px rgba(53,37,205,.4)">
+      <span class="material-symbols-outlined text-[20px]">add</span>
+    </button>
+    <a data-sc="pdf" class="mob-nav flex flex-col items-center gap-0.5 py-2 px-3 cursor-pointer text-osv transition-all" href="#">
+      <span class="material-symbols-outlined text-[20px]">picture_as_pdf</span>
+      <span class="text-[.5rem] font-bold uppercase">PDF</span>
+    </a>
+    <a data-sc="settings" class="mob-nav flex flex-col items-center gap-0.5 py-2 px-3 cursor-pointer text-osv transition-all" href="#">
+      <span class="material-symbols-outlined text-[20px]">settings</span>
+      <span class="text-[.5rem] font-bold uppercase" data-i18n="nav.settings"></span>
+    </a>
+  </nav>
+</div>
+
+<!-- TASK MODAL -->
+<div id="modal-overlay" class="fixed inset-0 z-[100] bg-black/40 backdrop-blur-sm items-center justify-center p-4">
+  <div class="bg-surf-clo rounded-2xl shadow-ambient-lg w-full max-w-md max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between p-5 border-b border-ov/20">
+      <h3 id="modal-title" class="font-black text-os text-base"></h3>
+      <button id="modal-close" class="w-8 h-8 flex items-center justify-center rounded-full hover-ch text-osv transition-colors">
+        <span class="material-symbols-outlined text-[18px]">close</span>
+      </button>
+    </div>
+    <form id="task-form" class="p-5 space-y-3.5" onsubmit="return false;">
+      <div>
+        <label class="text-[.58rem] font-bold text-osv uppercase tracking-widest block mb-1.5" data-i18n="task.name"></label>
+        <input id="t-name" type="text" required class="ifield" data-i18n-ph="task.namePh"/>
+      </div>
+      <div>
+        <label class="text-[.58rem] font-bold text-osv uppercase tracking-widest block mb-1.5" data-i18n="task.desc"></label>
+        <textarea id="t-desc" rows="2" class="ifield resize-none" data-i18n-ph="task.descPh"></textarea>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="text-[.58rem] font-bold text-osv uppercase tracking-widest block mb-1.5" data-i18n="task.deadline"></label>
+          <input id="t-dl" type="datetime-local" class="ifield"/>
+        </div>
+        <div>
+          <label class="text-[.58rem] font-bold text-osv uppercase tracking-widest block mb-1.5" data-i18n="task.priority"></label>
+          <select id="t-prio" class="ifield">
+            <option value="high"   data-i18n="prio.high"></option>
+            <option value="medium" data-i18n="prio.medium" selected></option>
+            <option value="low"    data-i18n="prio.low"></option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="text-[.58rem] font-bold text-osv uppercase tracking-widest block mb-1.5" data-i18n="task.category"></label>
+        <select id="t-cat" class="ifield"></select>
+      </div>
+      <div class="flex gap-2.5 pt-1">
+        <button type="button" id="modal-cancel" class="flex-1 py-2.5 bg-surf-ch text-osv rounded-xl font-bold text-sm hover-ch transition-colors" data-i18n="task.cancel"></button>
+        <button type="submit" class="flex-1 py-2.5 text-white rounded-xl font-bold text-sm hover:opacity-90 transition-all shadow-ambient" style="background:linear-gradient(135deg,#3525cd,#4f46e5)" data-i18n="task.save"></button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════
+// i18n TRANSLATIONS
+// ════════════════════════════════════════════════════════
+const TRANSLATIONS = {
+  cs: {
+    "auth.login":"Přihlásit se","auth.register":"Registrovat","auth.loginBtn":"Přihlásit se",
+    "auth.registerBtn":"Vytvořit účet","auth.logout":"Odhlásit se","auth.localNote":"Data jsou uložena pouze v tomto prohlížeči",
+    "auth.emailPh":"vas@email.cz","auth.password":"Heslo","auth.name":"Jméno","auth.namePh":"Tvoje jméno",
+    "auth.confirmPassword":"Potvrdit heslo",
+    "auth.err.fillAll":"Vyplň email a heslo.","auth.err.noAccount":"Účet neexistuje.",
+    "auth.err.wrongPass":"Špatné heslo.","auth.err.noName":"Zadej jméno.",
+    "auth.err.badEmail":"Zadej platný email.","auth.err.shortPass":"Heslo musí mít aspoň 6 znaků.",
+    "auth.err.noMatch":"Hesla se neshodují.","auth.err.exists":"Účet s tímto emailem již existuje.",
+    "nav.dashboard":"Dashboard","nav.tasks":"Úkoly","nav.calendar":"Kalendář",
+    "nav.pdf":"PDF Import","nav.settings":"Nastavení",
+    "dash.total":"Celkem","dash.done":"Splněné","dash.overdue":"Po termínu","dash.thisWeek":"Tento týden",
+    "dash.upcoming":"Nejbližší termíny","dash.noUpcoming":"Žádné nadcházející termíny.",
+    "dash.greeting":"Vítej, {name}!","dash.noTasks":"Zatím žádné úkoly. Přidej první!",
+    "dash.activeTasks":"{active} aktivních úkolů","dash.allOk":" · vše OK","dash.overdueCount":" · {n} po termínu",
+    "filter.all":"Vše","filter.pending":"Nesplněné","filter.done":"Splněné",
+    "filter.urgent":"Urgentní","filter.overdue":"Po termínu",
+    "task.sortBy":"Řadit:","sort.deadline":"Termín","sort.priority":"Priorita","sort.name":"Název",
+    "task.newTask":"Nový úkol","task.empty":"Žádné úkoly. Klikni Nový úkol!",
+    "task.searchPh":"Hledat…","task.name":"Název *","task.namePh":"Název úkolu…",
+    "task.desc":"Popis","task.descPh":"Volitelný popis…","task.deadline":"Deadline",
+    "task.priority":"Priorita","task.category":"Kategorie","task.cancel":"Zrušit","task.save":"Uložit",
+    "task.new":"Nový úkol","task.edit":"Upravit úkol","task.overdue":"Po termínu",
+    "prio.high":"Vysoká","prio.medium":"Střední","prio.low":"Nízká",
+    "settings.account":"Účet","settings.language":"Jazyk","settings.darkMode":"Tmavý režim",
+    "settings.darkModeSub":"Přepnout vzhled","settings.categories":"Kategorie",
+    "settings.newCatPh":"Nová kategorie…","settings.addCat":"Přidat",
+    "settings.clearTitle":"Smazat moje úkoly","settings.clearSub":"Tato akce je nevratná",
+    "settings.clearBtn":"Smazat vše","settings.clearConfirm":"Smazat všechny úkoly?",
+    "pdf.subtitle":"Nahraj syllabus nebo zadání — termíny se automaticky rozpoznají.",
+    "pdf.dropTitle":"Přetáhni PDF sem nebo klikni","pdf.dropSub":"Formát: PDF",
+    "pdf.found":"Nalezené úkoly","pdf.addAll":"Přidat vše","pdf.noFound":"Nebyly nalezeny termíny.",
+    "pdf.loading":"Načítám…","pdf.reading":"Čtu {n} stran…","pdf.searching":"Hledám termíny…",
+    "pdf.error":"Chyba: ","pdf.noLib":"PDF.js nedostupné.",
+    "pdf.add":"Přidat","pdf.added":"✓","pdf.deadline":"Deadline: ",
+    "cal.months":["Leden","Únor","Březen","Duben","Květen","Červen","Červenec","Srpen","Září","Říjen","Listopad","Prosinec"],
+    "cal.days":["Po","Út","St","Čt","Pá","So","Ne"],
+    "cal.deadlines":"Termíny: {d}. {m}. {y}","cal.noTasks":"Žádné úkoly.",
+    "defaultCats":["Škola","Práce","Osobní","Víza","Zkoušky"],
+  },
+  ru: {
+    "auth.login":"Войти","auth.register":"Регистрация","auth.loginBtn":"Войти",
+    "auth.registerBtn":"Создать аккаунт","auth.logout":"Выйти","auth.localNote":"Данные хранятся только в этом браузере",
+    "auth.emailPh":"email@example.com","auth.password":"Пароль","auth.name":"Имя","auth.namePh":"Ваше имя",
+    "auth.confirmPassword":"Подтвердить пароль",
+    "auth.err.fillAll":"Введите email и пароль.","auth.err.noAccount":"Аккаунт не найден.",
+    "auth.err.wrongPass":"Неверный пароль.","auth.err.noName":"Введите имя.",
+    "auth.err.badEmail":"Введите корректный email.","auth.err.shortPass":"Пароль минимум 6 символов.",
+    "auth.err.noMatch":"Пароли не совпадают.","auth.err.exists":"Аккаунт с таким email уже существует.",
+    "nav.dashboard":"Главная","nav.tasks":"Задачи","nav.calendar":"Календарь",
+    "nav.pdf":"PDF Импорт","nav.settings":"Настройки",
+    "dash.total":"Всего","dash.done":"Выполнено","dash.overdue":"Просрочено","dash.thisWeek":"Эта неделя",
+    "dash.upcoming":"Ближайшие дедлайны","dash.noUpcoming":"Нет предстоящих дедлайнов.",
+    "dash.greeting":"Привет, {name}!","dash.noTasks":"Пока нет задач. Добавь первую!",
+    "dash.activeTasks":"{active} активных задач","dash.allOk":" · всё OK","dash.overdueCount":" · {n} просрочено",
+    "filter.all":"Все","filter.pending":"Активные","filter.done":"Выполненные",
+    "filter.urgent":"Срочные","filter.overdue":"Просроченные",
+    "task.sortBy":"Сортировка:","sort.deadline":"Дедлайн","sort.priority":"Приоритет","sort.name":"Название",
+    "task.newTask":"Новая задача","task.empty":"Нет задач. Нажми Новая задача!",
+    "task.searchPh":"Поиск…","task.name":"Название *","task.namePh":"Название задачи…",
+    "task.desc":"Описание","task.descPh":"Необязательное описание…","task.deadline":"Дедлайн",
+    "task.priority":"Приоритет","task.category":"Категория","task.cancel":"Отмена","task.save":"Сохранить",
+    "task.new":"Новая задача","task.edit":"Редактировать","task.overdue":"Просрочено",
+    "prio.high":"Высокий","prio.medium":"Средний","prio.low":"Низкий",
+    "settings.account":"Аккаунт","settings.language":"Язык","settings.darkMode":"Тёмная тема",
+    "settings.darkModeSub":"Переключить оформление","settings.categories":"Категории",
+    "settings.newCatPh":"Новая категория…","settings.addCat":"Добавить",
+    "settings.clearTitle":"Удалить мои задачи","settings.clearSub":"Это действие необратимо",
+    "settings.clearBtn":"Удалить всё","settings.clearConfirm":"Удалить все задачи?",
+    "pdf.subtitle":"Загрузи силлабус или задание — дедлайны распознаются автоматически.",
+    "pdf.dropTitle":"Перетащи PDF сюда или нажми","pdf.dropSub":"Формат: PDF",
+    "pdf.found":"Найденные задачи","pdf.addAll":"Добавить все","pdf.noFound":"Дедлайны не найдены.",
+    "pdf.loading":"Загружаю…","pdf.reading":"Читаю {n} страниц…","pdf.searching":"Ищу дедлайны…",
+    "pdf.error":"Ошибка: ","pdf.noLib":"PDF.js недоступен.",
+    "pdf.add":"Добавить","pdf.added":"✓","pdf.deadline":"Дедлайн: ",
+    "cal.months":["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"],
+    "cal.days":["Пн","Вт","Ср","Чт","Пт","Сб","Вс"],
+    "cal.deadlines":"Дедлайны: {d}.{m}.{y}","cal.noTasks":"Нет задач.",
+    "defaultCats":["Учёба","Работа","Личное","Виза","Экзамены"],
+  },
+  en: {
+    "auth.login":"Log in","auth.register":"Sign up","auth.loginBtn":"Log in",
+    "auth.registerBtn":"Create account","auth.logout":"Log out","auth.localNote":"Data is stored only in this browser",
+    "auth.emailPh":"you@example.com","auth.password":"Password","auth.name":"Name","auth.namePh":"Your name",
+    "auth.confirmPassword":"Confirm password",
+    "auth.err.fillAll":"Enter email and password.","auth.err.noAccount":"Account not found.",
+    "auth.err.wrongPass":"Wrong password.","auth.err.noName":"Enter your name.",
+    "auth.err.badEmail":"Enter a valid email.","auth.err.shortPass":"Password must be at least 6 characters.",
+    "auth.err.noMatch":"Passwords do not match.","auth.err.exists":"An account with this email already exists.",
+    "nav.dashboard":"Dashboard","nav.tasks":"Tasks","nav.calendar":"Calendar",
+    "nav.pdf":"PDF Import","nav.settings":"Settings",
+    "dash.total":"Total","dash.done":"Done","dash.overdue":"Overdue","dash.thisWeek":"This week",
+    "dash.upcoming":"Upcoming deadlines","dash.noUpcoming":"No upcoming deadlines.",
+    "dash.greeting":"Welcome, {name}!","dash.noTasks":"No tasks yet. Add your first!",
+    "dash.activeTasks":"{active} active tasks","dash.allOk":" · all good","dash.overdueCount":" · {n} overdue",
+    "filter.all":"All","filter.pending":"Pending","filter.done":"Done",
+    "filter.urgent":"Urgent","filter.overdue":"Overdue",
+    "task.sortBy":"Sort by:","sort.deadline":"Deadline","sort.priority":"Priority","sort.name":"Name",
+    "task.newTask":"New task","task.empty":"No tasks. Click New task!",
+    "task.searchPh":"Search…","task.name":"Title *","task.namePh":"Task title…",
+    "task.desc":"Description","task.descPh":"Optional description…","task.deadline":"Deadline",
+    "task.priority":"Priority","task.category":"Category","task.cancel":"Cancel","task.save":"Save",
+    "task.new":"New task","task.edit":"Edit task","task.overdue":"Overdue",
+    "prio.high":"High","prio.medium":"Medium","prio.low":"Low",
+    "settings.account":"Account","settings.language":"Language","settings.darkMode":"Dark mode",
+    "settings.darkModeSub":"Switch appearance","settings.categories":"Categories",
+    "settings.newCatPh":"New category…","settings.addCat":"Add",
+    "settings.clearTitle":"Delete my tasks","settings.clearSub":"This action is irreversible",
+    "settings.clearBtn":"Delete all","settings.clearConfirm":"Delete all tasks?",
+    "pdf.subtitle":"Upload a syllabus or assignment — deadlines are detected automatically.",
+    "pdf.dropTitle":"Drag PDF here or click to select","pdf.dropSub":"Format: PDF",
+    "pdf.found":"Found tasks","pdf.addAll":"Add all","pdf.noFound":"No deadlines found.",
+    "pdf.loading":"Loading…","pdf.reading":"Reading {n} pages…","pdf.searching":"Searching for deadlines…",
+    "pdf.error":"Error: ","pdf.noLib":"PDF.js not available.",
+    "pdf.add":"Add","pdf.added":"✓","pdf.deadline":"Deadline: ",
+    "cal.months":["January","February","March","April","May","June","July","August","September","October","November","December"],
+    "cal.days":["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
+    "cal.deadlines":"Deadlines: {d}/{m}/{y}","cal.noTasks":"No tasks.",
+    "defaultCats":["School","Work","Personal","Visa","Exams"],
+  },
+  ky: {
+    "auth.login":"Кирүү","auth.register":"Катталуу","auth.loginBtn":"Кирүү",
+    "auth.registerBtn":"Аккаунт түзүү","auth.logout":"Чыгуу","auth.localNote":"Маалыматтар браузерде гана сакталат",
+    "auth.emailPh":"email@example.com","auth.password":"Сырсөз","auth.name":"Аты","auth.namePh":"Сиздин атыңыз",
+    "auth.confirmPassword":"Сырсөздү тастыктаңыз",
+    "auth.err.fillAll":"Email жана сырсөздү жазыңыз.","auth.err.noAccount":"Аккаунт табылган жок.",
+    "auth.err.wrongPass":"Туура эмес сырсөз.","auth.err.noName":"Атыңызды жазыңыз.",
+    "auth.err.badEmail":"Туура email жазыңыз.","auth.err.shortPass":"Сырсөз кеминде 6 белги болуусу керек.",
+    "auth.err.noMatch":"Сырсөздөр дал келбейт.","auth.err.exists":"Бул email менен аккаунт бар.",
+    "nav.dashboard":"Башкы бет","nav.tasks":"Тапшырмалар","nav.calendar":"Жылнаама",
+    "nav.pdf":"PDF Импорт","nav.settings":"Жөндөөлөр",
+    "dash.total":"Жалпы","dash.done":"Аткарылды","dash.overdue":"Мөөнөтү өттү","dash.thisWeek":"Бул жума",
+    "dash.upcoming":"Жакынкы мөөнөттөр","dash.noUpcoming":"Жакынкы мөөнөттөр жок.",
+    "dash.greeting":"Кош келдиңиз, {name}!","dash.noTasks":"Тапшырмалар жок. Биринчисин кошуңуз!",
+    "dash.activeTasks":"{active} активдүү тапшырма","dash.allOk":" · баары жакшы","dash.overdueCount":" · {n} мөөнөтү өтүп кеткен",
+    "filter.all":"Баары","filter.pending":"Активдүү","filter.done":"Аткарылган",
+    "filter.urgent":"Шашылыш","filter.overdue":"Мөөнөтү өткөн",
+    "task.sortBy":"Сорттоо:","sort.deadline":"Мөөнөт","sort.priority":"Приоритет","sort.name":"Аталышы",
+    "task.newTask":"Жаңы тапшырма","task.empty":"Тапшырмалар жок. Жаңы тапшырма кошуңуз!",
+    "task.searchPh":"Издөө…","task.name":"Аталышы *","task.namePh":"Тапшырманын аталышы…",
+    "task.desc":"Сүрөттөмө","task.descPh":"Кошумча сүрөттөмө…","task.deadline":"Мөөнөт",
+    "task.priority":"Приоритет","task.category":"Категория","task.cancel":"Жокко чыгаруу","task.save":"Сактоо",
+    "task.new":"Жаңы тапшырма","task.edit":"Өзгөртүү","task.overdue":"Мөөнөтү өттү",
+    "prio.high":"Жогору","prio.medium":"Орто","prio.low":"Төмөн",
+    "settings.account":"Аккаунт","settings.language":"Тил","settings.darkMode":"Түнкү режим",
+    "settings.darkModeSub":"Көрүнүштү которуу","settings.categories":"Категориялар",
+    "settings.newCatPh":"Жаңы категория…","settings.addCat":"Кошуу",
+    "settings.clearTitle":"Тапшырмаларымды өчүрүү","settings.clearSub":"Бул аракет кайтарылгыс",
+    "settings.clearBtn":"Баарын өчүрүү","settings.clearConfirm":"Бардык тапшырмаларды өчүрүүбү?",
+    "pdf.subtitle":"PDF жүктөңүз — мөөнөттөр автоматтык түрдө табылат.",
+    "pdf.dropTitle":"PDF файлды бул жерге сүйрөңүз же басыңыз","pdf.dropSub":"Формат: PDF",
+    "pdf.found":"Табылган тапшырмалар","pdf.addAll":"Баарын кошуу","pdf.noFound":"Мөөнөттөр табылган жок.",
+    "pdf.loading":"Жүктөлүүдө…","pdf.reading":"{n} барак окулуп жатат…","pdf.searching":"Мөөнөттөр изделүүдө…",
+    "pdf.error":"Ката: ","pdf.noLib":"PDF.js жеткиликсиз.",
+    "pdf.add":"Кошуу","pdf.added":"✓","pdf.deadline":"Мөөнөт: ",
+    "cal.months":["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"],
+    "cal.days":["Дш","Шш","Шр","Бш","Жм","Иш","Жк"],
+    "cal.deadlines":"Мөөнөттөр: {d}.{m}.{y}","cal.noTasks":"Тапшырмалар жок.",
+    "defaultCats":["Окуу","Иш","Жеке","Виза","Экзамен"],
+  },
+  kz: {
+    "auth.login":"Кіру","auth.register":"Тіркелу","auth.loginBtn":"Кіру",
+    "auth.registerBtn":"Аккаунт жасау","auth.logout":"Шығу","auth.localNote":"Деректер тек осы браузерде сақталады",
+    "auth.emailPh":"email@example.com","auth.password":"Құпиясөз","auth.name":"Аты","auth.namePh":"Сіздің атыңыз",
+    "auth.confirmPassword":"Құпиясөзді растаңыз",
+    "auth.err.fillAll":"Email мен құпиясөзді енгізіңіз.","auth.err.noAccount":"Аккаунт табылмады.",
+    "auth.err.wrongPass":"Қате құпиясөз.","auth.err.noName":"Атыңызды енгізіңіз.",
+    "auth.err.badEmail":"Дұрыс email енгізіңіз.","auth.err.shortPass":"Құпиясөз кемінде 6 таңба болуы керек.",
+    "auth.err.noMatch":"Құпиясөздер сәйкес келмейді.","auth.err.exists":"Бұл email-мен аккаунт бар.",
+    "nav.dashboard":"Басты бет","nav.tasks":"Тапсырмалар","nav.calendar":"Күнтізбе",
+    "nav.pdf":"PDF Импорт","nav.settings":"Параметрлер",
+    "dash.total":"Барлығы","dash.done":"Орындалды","dash.overdue":"Мерзімі өтті","dash.thisWeek":"Осы апта",
+    "dash.upcoming":"Жақындағы мерзімдер","dash.noUpcoming":"Жақын арада мерзім жоқ.",
+    "dash.greeting":"Сәлем, {name}!","dash.noTasks":"Тапсырмалар жоқ. Бірінші тапсырманы қосыңыз!",
+    "dash.activeTasks":"{active} белсенді тапсырма","dash.allOk":" · бәрі жақсы","dash.overdueCount":" · {n} мерзімі өткен",
+    "filter.all":"Барлығы","filter.pending":"Белсенді","filter.done":"Орындалған",
+    "filter.urgent":"Шұғыл","filter.overdue":"Мерзімі өткен",
+    "task.sortBy":"Сұрыптау:","sort.deadline":"Мерзім","sort.priority":"Басымдық","sort.name":"Атауы",
+    "task.newTask":"Жаңа тапсырма","task.empty":"Тапсырмалар жоқ. Жаңа тапсырма қосыңыз!",
+    "task.searchPh":"Іздеу…","task.name":"Атауы *","task.namePh":"Тапсырма атауы…",
+    "task.desc":"Сипаттама","task.descPh":"Қосымша сипаттама…","task.deadline":"Мерзім",
+    "task.priority":"Басымдық","task.category":"Санат","task.cancel":"Болдырмау","task.save":"Сақтау",
+    "task.new":"Жаңа тапсырма","task.edit":"Өңдеу","task.overdue":"Мерзімі өтті",
+    "prio.high":"Жоғары","prio.medium":"Орташа","prio.low":"Төмен",
+    "settings.account":"Аккаунт","settings.language":"Тіл","settings.darkMode":"Түнгі режим",
+    "settings.darkModeSub":"Дизайнды ауыстыру","settings.categories":"Санаттар",
+    "settings.newCatPh":"Жаңа санат…","settings.addCat":"Қосу",
+    "settings.clearTitle":"Тапсырмаларымды жою","settings.clearSub":"Бұл әрекетті кері қайтару мүмкін емес",
+    "settings.clearBtn":"Барлығын жою","settings.clearConfirm":"Барлық тапсырмаларды жоясыз ба?",
+    "pdf.subtitle":"PDF жүктеңіз — мерзімдер автоматты түрде анықталады.",
+    "pdf.dropTitle":"PDF файлын осы жерге апарыңыз немесе басыңыз","pdf.dropSub":"Формат: PDF",
+    "pdf.found":"Табылған тапсырмалар","pdf.addAll":"Барлығын қосу","pdf.noFound":"Мерзімдер табылмады.",
+    "pdf.loading":"Жүктелуде…","pdf.reading":"{n} бет оқылуда…","pdf.searching":"Мерзімдер ізделуде…",
+    "pdf.error":"Қате: ","pdf.noLib":"PDF.js қолжетімді емес.",
+    "pdf.add":"Қосу","pdf.added":"✓","pdf.deadline":"Мерзім: ",
+    "cal.months":["Қаңтар","Ақпан","Наурыз","Сәуір","Мамыр","Маусым","Шілде","Тамыз","Қыркүйек","Қазан","Қараша","Желтоқсан"],
+    "cal.days":["Дс","Сс","Ср","Бс","Жм","Сб","Жк"],
+    "cal.deadlines":"Мерзімдер: {d}.{m}.{y}","cal.noTasks":"Тапсырмалар жоқ.",
+    "defaultCats":["Оқу","Жұмыс","Жеке","Виза","Емтихан"],
+  }
+};
+
+// Active language
+let LANG = localStorage.getItem('sdt_lang') || 'cs';
+function t(key, vars){
+  let s = TRANSLATIONS[LANG]?.[key] || TRANSLATIONS['en']?.[key] || key;
+  if(vars) Object.entries(vars).forEach(([k,v])=>s=s.replaceAll('{'+k+'}',v));
+  return s;
+}
+function tArr(key){ return TRANSLATIONS[LANG]?.[key] || TRANSLATIONS['en']?.[key] || []; }
+
+function applyTranslations(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{
+    const key=el.dataset.i18n;
+    if(el.tagName==='OPTION') el.textContent=t(key);
+    else el.textContent=t(key);
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el=>{
+    el.placeholder=t(el.dataset.i18nPh);
+  });
+  // Update lang buttons
+  document.querySelectorAll('.lang-btn').forEach(b=>{
+    b.classList.toggle('active', b.dataset.lang===LANG);
+  });
+  // Update navigation titles map
+  TITLES.dashboard=t('nav.dashboard');
+  TITLES.tasks=t('nav.tasks');
+  TITLES.calendar=t('nav.calendar');
+  TITLES.pdf=t('nav.pdf');
+  TITLES.settings=t('nav.settings');
+  // Re-render active screen title
+  const active=document.querySelector('.screen.active');
+  if(active){
+    const id=active.id.replace('sc-','');
+    const title=document.getElementById('page-title');
+    if(title) title.textContent=TITLES[id]||'';
+  }
+}
+
+function setLang(lang){
+  LANG=lang;
+  localStorage.setItem('sdt_lang',lang);
+  applyTranslations();
+  renderDash();
+  renderTasks();
+  renderCal();
+  renderSettings();
+}
+
+document.querySelectorAll('.lang-btn').forEach(b=>{
+  b.addEventListener('click',()=>setLang(b.dataset.lang));
+});
+
+// ════════════════════════════════════════════════════════
+// PDF.js
+// ════════════════════════════════════════════════════════
+if(typeof pdfjsLib!=='undefined') pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ════════════════════════════════════════════════════════
+// AUTH / STORAGE
+// ════════════════════════════════════════════════════════
+function getUsers(){try{return JSON.parse(localStorage.getItem('sdt_users')||'{}')}catch{return{}}}
+function setUsers(u){localStorage.setItem('sdt_users',JSON.stringify(u))}
+function getSession(){return localStorage.getItem('sdt_sess')||null}
+function setSession(e){localStorage.setItem('sdt_sess',e)}
+function clearSession(){localStorage.removeItem('sdt_sess')}
+function userKey(e){return 'sdt_u_'+e.toLowerCase().replace(/[^a-z0-9]/g,'_')}
+function loadUD(e){try{const r=localStorage.getItem(userKey(e));return r?JSON.parse(r):null}catch{return null}}
+function saveUD(e,d){localStorage.setItem(userKey(e),JSON.stringify(d))}
+function hash(s){let h=0;for(let i=0;i<s.length;i++)h=(Math.imul(31,h)+s.charCodeAt(i))|0;return h.toString(36)}
+
+// ════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════
+let CU=null;
+let S={tasks:[],categories:[],darkMode:false,filter:'all',sort:'deadline',editId:null,cy:new Date().getFullYear(),cm:new Date().getMonth()};
+
+function persist(){
+  if(!CU)return;
+  saveUD(CU.email,{tasks:S.tasks,categories:S.categories,darkMode:S.darkMode});
+}
+function loadForUser(email){
+  const d=loadUD(email);
+  S.tasks=d?.tasks||[];
+  S.categories=d?.categories||[];
+  S.darkMode=d?.darkMode||false;
+  S.filter='all';S.sort='deadline';S.editId=null;
+  S.cy=new Date().getFullYear();S.cm=new Date().getMonth();
+}
+
+// ════════════════════════════════════════════════════════
+// DARK MODE
+// ════════════════════════════════════════════════════════
+// DARK MODE — fixed using inline styles on body + classes
+// ════════════════════════════════════════════════════════
+function applyDark(){
+  const dark=S.darkMode;
+  document.documentElement.classList.toggle('dark',dark);
+  // Force body bg/color explicitly
+  document.body.style.background = dark ? '#131318' : '#fcf8ff';
+  document.body.style.color = dark ? '#e5e1f0' : '#1b1b24';
+  const ic=document.getElementById('theme-icon');
+  if(ic) ic.textContent=dark?'light_mode':'dark_mode';
+  const tog=document.getElementById('set-dark');
+  if(tog) tog.checked=dark;
+  // Toggle bg for main app page
+  const appPage=document.getElementById('pg-app');
+  if(appPage){ appPage.style.background = dark?'#131318':'#fcf8ff'; }
+  const mainEl=appPage?.querySelector('main');
+  if(mainEl){ mainEl.style.background = dark?'#131318':'#fcf8ff'; }
+}
+
+document.getElementById('theme-btn').addEventListener('click',()=>{
+  S.darkMode=!S.darkMode; applyDark(); persist();
+});
+document.getElementById('set-dark').addEventListener('change',function(){
+  S.darkMode=this.checked; applyDark(); persist();
+});
+
+// ════════════════════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════════════════════
+const SCS=['dashboard','tasks','calendar','pdf','settings'];
+const TITLES={dashboard:'',tasks:'',calendar:'',pdf:'',settings:''};
+
+function showSc(name){
+  SCS.forEach(s=>document.getElementById('sc-'+s).classList.toggle('active',s===name));
+  document.getElementById('page-title').textContent=TITLES[name]||'';
+  document.querySelectorAll('.nav-link').forEach(a=>{
+    const act=a.dataset.sc===name;
+    a.classList.toggle('bg-surf-clo',act);
+    a.style.color=act?'#3525cd':'';
+    a.style.fontWeight=act?'700':'';
+    if(act) a.style.boxShadow='0 2px 8px rgba(27,27,36,0.06)';
+    else a.style.boxShadow='';
+  });
+  document.querySelectorAll('.mob-nav').forEach(a=>{
+    a.style.color=a.dataset.sc===name?'#3525cd':'';
+  });
+  if(name==='dashboard')renderDash();
+  if(name==='tasks')renderTasks();
+  if(name==='calendar')renderCal();
+  if(name==='settings')renderSettings();
+}
+document.querySelectorAll('[data-sc]').forEach(el=>el.addEventListener('click',e=>{e.preventDefault();showSc(el.dataset.sc)}));
+
+// ════════════════════════════════════════════════════════
+// AUTH LOGIC
+// ════════════════════════════════════════════════════════
+function switchTab(tab){
+  ['login','register'].forEach(x=>{
+    document.getElementById('tab-'+x).classList.toggle('active',x===tab);
+    document.getElementById('form-'+x).classList.toggle('hidden',x!==tab);
+  });
+  clearErrs();
+}
+function clearErrs(){['li-err','ri-err'].forEach(id=>{const e=document.getElementById(id);e.classList.add('hidden');e.textContent=''})}
+function showErr(id,msg){
+  const e=document.getElementById(id);e.textContent=msg;e.classList.remove('hidden');
+  const p=e.closest('.px-5');if(p){p.classList.add('shake');setTimeout(()=>p.classList.remove('shake'),300)}
+}
+function toggleVis(id,btn){
+  const i=document.getElementById(id),ic=btn.querySelector('.material-symbols-outlined');
+  i.type=i.type==='password'?'text':'password';
+  ic.textContent=i.type==='password'?'visibility':'visibility_off';
+}
+
+function doLogin(){
+  const email=document.getElementById('li-email').value.trim().toLowerCase();
+  const pass=document.getElementById('li-pass').value;
+  if(!email||!pass){showErr('li-err',t('auth.err.fillAll'));return}
+  const u=getUsers()[email];
+  if(!u){showErr('li-err',t('auth.err.noAccount'));return}
+  if(u.ph!==hash(pass)){showErr('li-err',t('auth.err.wrongPass'));return}
+  setSession(email);enterApp({email,name:u.name});
+}
+function doRegister(){
+  const name=document.getElementById('ri-name').value.trim();
+  const email=document.getElementById('ri-email').value.trim().toLowerCase();
+  const pass=document.getElementById('ri-pass').value;
+  const pass2=document.getElementById('ri-pass2').value;
+  if(!name){showErr('ri-err',t('auth.err.noName'));return}
+  if(!email||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){showErr('ri-err',t('auth.err.badEmail'));return}
+  if(pass.length<6){showErr('ri-err',t('auth.err.shortPass'));return}
+  if(pass!==pass2){showErr('ri-err',t('auth.err.noMatch'));return}
+  const users=getUsers();
+  if(users[email]){showErr('ri-err',t('auth.err.exists'));return}
+  users[email]={name,ph:hash(pass)};setUsers(users);setSession(email);enterApp({email,name});
+}
+function doLogout(){
+  clearSession();CU=null;
+  document.getElementById('pg-auth').classList.add('on');
+  document.getElementById('pg-app').classList.remove('on');
+  document.getElementById('pg-app').classList.add('hidden');
+  ['li-email','li-pass','ri-name','ri-email','ri-pass','ri-pass2'].forEach(id=>document.getElementById(id).value='');
+  clearErrs();closeDD();
+}
+function enterApp(user){
+  CU=user;loadForUser(user.email);
+  applyDark();applyTranslations();updateUI();
+  document.getElementById('pg-auth').classList.remove('on');
+  document.getElementById('pg-app').classList.remove('hidden');
+  document.getElementById('pg-app').classList.add('on');
+  showSc('dashboard');renderSettings();
+}
+function updateUI(){
+  if(!CU)return;
+  const ini=CU.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+  ['sb-avatar','tb-avatar','set-avatar'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=ini});
+  ['sb-name','dd-name','set-name'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=CU.name});
+  ['sb-email','dd-email','set-email'].forEach(id=>{const e=document.getElementById(id);if(e)e.textContent=CU.email});
+}
+function toggleDD(){document.getElementById('user-dd').classList.toggle('open')}
+function closeDD(){document.getElementById('user-dd').classList.remove('open')}
+document.addEventListener('click',e=>{if(!e.target.closest('#user-menu-btn')&&!e.target.closest('#user-dd'))closeDD()});
+
+// ════════════════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════════════════
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,6)}
+function now(){return Date.now()}
+function cd(dl){
+  if(!dl)return'';
+  const diff=new Date(dl).getTime()-now();
+  if(diff<0)return`<span style="color:#ba1a1a;font-weight:700">${t('task.overdue')}</span>`;
+  const d=Math.floor(diff/86400000),h=Math.floor((diff%86400000)/3600000),m=Math.floor((diff%3600000)/60000);
+  if(d>0)return`<b>${d}d ${h}h</b>`;
+  if(h>0)return`<b style="color:#684000">${h}h ${m}m</b>`;
+  return`<b style="color:#ba1a1a">${m}m</b>`;
+}
+function fdate(s){
+  if(!s)return'—';
+  const d=new Date(s);
+  const months=tArr('cal.months');
+  if(months.length) return`${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+  return d.toLocaleDateString();
+}
+function plbl(p){return t('prio.'+p)||p}
+function pclsBg(p){return{high:'background:#ffdad6;color:#93000a',medium:'background:#ffddb8;color:#653e00',low:'background:#6cf8bb;color:#00714d'}[p]||''}
+function pdot(p){return{high:'dot-high',medium:'dot-medium',low:'dot-low'}[p]||''}
+function isOD(t){return t.deadline&&!t.done&&new Date(t.deadline).getTime()<now()}
+function isUrgent(t){return t.priority==='high'&&!t.done}
+function isWeek(t){if(!t.deadline||t.done)return false;const d=new Date(t.deadline).getTime(),s=now(),e=s+7*86400000;return d>=s&&d<=e}
+
+// ════════════════════════════════════════════════════════
+// MODAL
+// ════════════════════════════════════════════════════════
+const modal=document.getElementById('modal-overlay');
+function openModal(id=null){
+  S.editId=id;
+  const task=id?S.tasks.find(x=>x.id===id):null;
+  document.getElementById('modal-title').textContent=task?t('task.edit'):t('task.new');
+  document.getElementById('t-name').value=task?.name||'';
+  document.getElementById('t-desc').value=task?.desc||'';
+  document.getElementById('t-dl').value=task?.deadline?task.deadline.slice(0,16):'';
+  document.getElementById('t-prio').value=task?.priority||'medium';
+  // update priority options text
+  document.querySelectorAll('#t-prio option').forEach(o=>o.textContent=t('prio.'+o.value));
+  const sel=document.getElementById('t-cat');sel.innerHTML='';
+  S.categories.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;if(task?.category===c)o.selected=true;sel.appendChild(o)});
+  modal.classList.add('open');
+  setTimeout(()=>document.getElementById('t-name').focus(),50);
+}
+function closeModal(){modal.classList.remove('open');S.editId=null}
+document.getElementById('modal-close').addEventListener('click',closeModal);
+document.getElementById('modal-cancel').addEventListener('click',closeModal);
+modal.addEventListener('click',e=>{if(e.target===modal)closeModal()});
+
+document.getElementById('task-form').addEventListener('submit',()=>{
+  const name=document.getElementById('t-name').value.trim();
+  if(!name){document.getElementById('t-name').focus();return}
+  const ex=S.editId?S.tasks.find(x=>x.id===S.editId):null;
+  const task={id:S.editId||uid(),name,desc:document.getElementById('t-desc').value.trim(),
+    deadline:document.getElementById('t-dl').value||null,
+    priority:document.getElementById('t-prio').value,
+    category:document.getElementById('t-cat').value,
+    done:ex?.done||false,createdAt:ex?.createdAt||now()};
+  if(S.editId){const idx=S.tasks.findIndex(x=>x.id===S.editId);if(idx!==-1)S.tasks[idx]=task}
+  else S.tasks.unshift(task);
+  persist();closeModal();renderDash();renderTasks();
+});
+
+['btn-new-sb','btn-new-tasks','btn-new-top','btn-fab'].forEach(id=>{
+  const e=document.getElementById(id);if(e)e.addEventListener('click',()=>openModal());
+});
+
+// ════════════════════════════════════════════════════════
+// TASK CARD
+// ════════════════════════════════════════════════════════
+function mkCard(task,alt){
+  const od=isOD(task);
+  const div=document.createElement('div');
+  const bgStyle=alt?'background:var(--surf-cl, #f5f2ff)':'background:#ffffff';
+  div.className='task-enter flex items-center gap-3 px-4 py-3 rounded-xl shadow-ambient group transition-all';
+  div.style.cssText=S.darkMode?(alt?'background:#1b1b23':'background:#1f1f28'):(alt?'background:#f5f2ff':'background:#ffffff');
+  div.dataset.id=task.id;
+  const checkStyle=task.done
+    ?'background:#006c49;border-color:#006c49'
+    :(od?'border-color:#ba1a1a':'border-color:#c7c4d8');
+  div.innerHTML=`
+    <button class="td flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all" style="${checkStyle}">
+      ${task.done?'<span class="material-symbols-outlined text-white" style="font-size:11px">check</span>':''}
+    </button>
+    <div class="flex-1 min-w-0">
+      <p class="font-semibold text-sm leading-tight truncate text-os" style="${task.done?'text-decoration:line-through;opacity:.45':''}">
+        ${task.name}</p>
+      <p class="text-[.62rem] text-osv truncate mt-0.5">${task.category}${task.deadline?' · '+fdate(task.deadline):''}</p>
+    </div>
+    <div class="flex items-center gap-1.5 flex-shrink-0">
+      ${task.deadline?`<div class="hidden sm:block text-xs">${cd(task.deadline)}</div>`:''}
+      <div class="flex items-center gap-1 px-2 py-0.5 rounded-full" style="${pclsBg(task.priority)}">
+        <span class="w-1.5 h-1.5 rounded-full flex-shrink-0 ${pdot(task.priority)}"></span>
+        <span class="text-[.54rem] font-bold">${plbl(task.priority)}</span>
+      </div>
+      <div class="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+        <button class="be w-7 h-7 flex items-center justify-center rounded-full text-osv hover:bg-surf-ch transition-colors">
+          <span class="material-symbols-outlined" style="font-size:13px">edit</span>
+        </button>
+        <button class="bd w-7 h-7 flex items-center justify-center rounded-full text-osv transition-colors" style="hover:background:#ffdad6">
+          <span class="material-symbols-outlined" style="font-size:13px">delete</span>
+        </button>
+      </div>
+    </div>`;
+  div.querySelector('.td').addEventListener('click',()=>{
+    const x=S.tasks.find(x=>x.id===task.id);if(x){x.done=!x.done;persist();renderTasks();renderDash()}
+  });
+  div.querySelector('.be').addEventListener('click',()=>openModal(task.id));
+  const bdBtn=div.querySelector('.bd');
+  bdBtn.addEventListener('mouseenter',()=>bdBtn.style.background='#ffdad6');
+  bdBtn.addEventListener('mouseleave',()=>bdBtn.style.background='');
+  bdBtn.addEventListener('click',()=>{S.tasks=S.tasks.filter(x=>x.id!==task.id);persist();renderTasks();renderDash()});
+  return div;
+}
+
+// ════════════════════════════════════════════════════════
+// RENDER TASKS
+// ════════════════════════════════════════════════════════
+function filtered(){
+  let tasks=[...S.tasks];
+  const q=(document.getElementById('search-input')?.value||'').trim().toLowerCase();
+  if(q)tasks=tasks.filter(x=>x.name.toLowerCase().includes(q)||(x.desc||'').toLowerCase().includes(q));
+  if(S.filter==='pending')tasks=tasks.filter(x=>!x.done);
+  if(S.filter==='done')tasks=tasks.filter(x=>x.done);
+  if(S.filter==='urgent')tasks=tasks.filter(x=>isUrgent(x));
+  if(S.filter==='overdue')tasks=tasks.filter(x=>isOD(x));
+  if(S.sort==='deadline')tasks.sort((a,b)=>{if(!a.deadline&&!b.deadline)return 0;if(!a.deadline)return 1;if(!b.deadline)return -1;return new Date(a.deadline)-new Date(b.deadline)});
+  if(S.sort==='priority'){const p={high:0,medium:1,low:2};tasks.sort((a,b)=>(p[a.priority]||1)-(p[b.priority]||1))}
+  if(S.sort==='name')tasks.sort((a,b)=>a.name.localeCompare(b.name));
+  return tasks;
+}
+function renderTasks(){
+  const list=document.getElementById('task-list'),empty=document.getElementById('task-empty');
+  if(!list)return;
+  const tasks=filtered();list.innerHTML='';
+  empty.classList.toggle('hidden',tasks.length>0);
+  tasks.forEach((t,i)=>list.appendChild(mkCard(t,i%2===1)));
+}
+document.querySelectorAll('.fb').forEach(btn=>btn.addEventListener('click',()=>{
+  S.filter=btn.dataset.f;
+  document.querySelectorAll('.fb').forEach(b=>{
+    const act=b.dataset.f===S.filter;
+    b.style.background=act?'#3525cd':'';
+    b.style.color=act?'#ffffff':'';
+    b.className=`fb px-3.5 py-1.5 rounded-full font-bold text-xs ${act?'':'bg-surf-ch text-osv'}`;
+    if(act){b.style.background='#3525cd';b.style.color='#fff'}
+    else{b.style.background='';b.style.color=''}
+  });
+  renderTasks();
+}));
+document.querySelectorAll('.sb').forEach(btn=>btn.addEventListener('click',()=>{
+  S.sort=btn.dataset.s;
+  document.querySelectorAll('.sb').forEach(b=>{
+    const act=b.dataset.s===S.sort;
+    b.style.background=act?'#fff':'';
+    b.style.color=act?'#3525cd':'';
+    b.style.boxShadow=act?'0 1px 4px rgba(0,0,0,.08)':'';
+  });
+  renderTasks();
+}));
+document.getElementById('search-input').addEventListener('input',renderTasks);
+
+// ════════════════════════════════════════════════════════
+// DASHBOARD
+// ════════════════════════════════════════════════════════
+function renderDash(){
+  const tasks=S.tasks,done=tasks.filter(x=>x.done).length,over=tasks.filter(x=>isOD(x)).length,week=tasks.filter(x=>isWeek(x)).length;
+  document.getElementById('st-total').textContent=tasks.length;
+  document.getElementById('st-done').textContent=done;
+  document.getElementById('st-over').textContent=over;
+  document.getElementById('st-week').textContent=week;
+  const g=document.getElementById('dash-greeting');
+  if(CU) g.textContent=t('dash.greeting',{name:CU.name.split(' ')[0]});
+  const sub=document.getElementById('dash-sub');
+  if(tasks.length===0) sub.textContent=t('dash.noTasks');
+  else sub.textContent=t('dash.activeTasks',{active:tasks.length-done})+(over>0?t('dash.overdueCount',{n:over}):t('dash.allOk'));
+  const up=tasks.filter(x=>!x.done&&x.deadline).sort((a,b)=>new Date(a.deadline)-new Date(b.deadline)).slice(0,5);
+  const ul=document.getElementById('dash-upcoming');ul.innerHTML='';
+  if(!up.length){ul.innerHTML=`<p class="text-sm text-osv/50 font-medium">${t('dash.noUpcoming')}</p>`;return}
+  up.forEach(x=>ul.appendChild(mkCard(x,false)));
+}
+
+// ════════════════════════════════════════════════════════
+// CALENDAR
+// ════════════════════════════════════════════════════════
+function renderCal(){
+  const{cy,cm}=S;
+  const months=tArr('cal.months'),days=tArr('cal.days');
+  document.getElementById('cal-lbl').textContent=`${months[cm]||cm+1} ${cy}`;
+  // Header days
+  const hdr=document.getElementById('cal-header');hdr.innerHTML='';
+  days.forEach(d=>{const el=document.createElement('div');el.className='py-2 text-center text-[.58rem] font-bold text-osv uppercase tracking-widest';el.textContent=d;hdr.appendChild(el)});
+  const fd=new Date(cy,cm,1).getDay(),off=(fd===0?6:fd-1),dim=new Date(cy,cm+1,0).getDate(),today=new Date();
+  const grid=document.getElementById('cal-days');grid.innerHTML='';
+  const tbd={};
+  S.tasks.forEach(task=>{if(!task.deadline)return;const d=new Date(task.deadline);if(d.getFullYear()===cy&&d.getMonth()===cm){const day=d.getDate();if(!tbd[day])tbd[day]=[];tbd[day].push(task)}});
+  for(let i=0;i<off;i++){const c=document.createElement('div');c.className='h-11 p-1';grid.appendChild(c)}
+  for(let day=1;day<=dim;day++){
+    const isT=today.getFullYear()===cy&&today.getMonth()===cm&&today.getDate()===day,has=!!tbd[day];
+    const cell=document.createElement('button');
+    cell.className=`h-11 p-0.5 flex flex-col items-center justify-start gap-0.5 hover-ch transition-colors rounded-lg${isT?' outline outline-2 outline-primary/40':''}`;
+    cell.innerHTML=`<span class="text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full" style="${isT?'background:#3525cd;color:#fff':''}">${day}</span>
+      ${has?`<div class="flex gap-0.5">${tbd[day].slice(0,3).map(x=>`<span class="w-1 h-1 rounded-full ${pdot(x.priority)}"></span>`).join('')}</div>`:''}`;
+    cell.addEventListener('click',()=>showCalDay(day,tbd[day]||[]));
+    grid.appendChild(cell);
+  }
+  document.getElementById('cal-day-box').classList.add('hidden');
+}
+function showCalDay(day,tasks){
+  const months=tArr('cal.months');
+  document.getElementById('cal-day-title').textContent=t('cal.deadlines',{d:day,m:S.cm+1,y:S.cy});
+  const list=document.getElementById('cal-day-list');list.innerHTML='';
+  document.getElementById('cal-day-box').classList.remove('hidden');
+  if(!tasks.length){list.innerHTML=`<p class="text-sm text-osv/50">${t('cal.noTasks')}</p>`;return}
+  tasks.forEach(x=>list.appendChild(mkCard(x,false)));
+}
+document.getElementById('cal-prev').addEventListener('click',()=>{S.cm--;if(S.cm<0){S.cm=11;S.cy--}renderCal()});
+document.getElementById('cal-next').addEventListener('click',()=>{S.cm++;if(S.cm>11){S.cm=0;S.cy++}renderCal()});
+
+// ════════════════════════════════════════════════════════
+// SETTINGS
+// ════════════════════════════════════════════════════════
+function renderSettings(){
+  if(!CU)return;
+  document.getElementById('set-dark').checked=S.darkMode;
+  updateUI();applyTranslations();
+  const cc=document.getElementById('set-cats');cc.innerHTML='';
+  S.categories.forEach(c=>{
+    const tag=document.createElement('div');
+    tag.className='flex items-center gap-1 px-2.5 py-1 bg-surf-c rounded-full text-xs font-bold text-os';
+    tag.innerHTML=`${c} <button class="ml-1 text-osv hover:text-error transition-colors" style="font-size:14px">×</button>`;
+    tag.querySelector('button').addEventListener('click',()=>{if(S.categories.length<=1)return;S.categories=S.categories.filter(x=>x!==c);persist();renderSettings()});
+    cc.appendChild(tag);
+  });
+}
+document.getElementById('cat-add').addEventListener('click',()=>{
+  const inp=document.getElementById('cat-inp'),val=inp.value.trim();
+  if(!val||S.categories.includes(val)){inp.focus();return}
+  S.categories.push(val);inp.value='';persist();renderSettings();
+});
+document.getElementById('cat-inp').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('cat-add').click()});
+document.getElementById('clear-btn').addEventListener('click',()=>{
+  if(!confirm(t('settings.clearConfirm')))return;
+  S.tasks=[];S.categories=[];;persist();renderDash();renderTasks();renderSettings();
+});
+
+// ════════════════════════════════════════════════════════
+// PDF
+// ════════════════════════════════════════════════════════
+const pdfDrop=document.getElementById('pdf-drop'),pdfInp=document.getElementById('pdf-inp');
+pdfDrop.addEventListener('click',()=>pdfInp.click());
+pdfDrop.addEventListener('dragover',e=>{e.preventDefault();pdfDrop.style.borderColor='#3525cd';pdfDrop.style.background='rgba(53,37,205,.04)'});
+pdfDrop.addEventListener('dragleave',()=>{pdfDrop.style.borderColor='';pdfDrop.style.background=''});
+pdfDrop.addEventListener('drop',e=>{e.preventDefault();pdfDrop.style.borderColor='';pdfDrop.style.background='';const f=e.dataTransfer.files[0];if(f&&f.type==='application/pdf')parsePDF(f)});
+pdfInp.addEventListener('change',()=>{if(pdfInp.files[0])parsePDF(pdfInp.files[0])});
+
+async function parsePDF(file){
+  if(typeof pdfjsLib==='undefined'){alert(t('pdf.noLib'));return}
+  const pg=document.getElementById('pdf-prog'),bar=document.getElementById('pdf-prog-bar'),txt=document.getElementById('pdf-prog-txt');
+  document.getElementById('pdf-res').classList.add('hidden');pg.classList.remove('hidden');bar.style.width='10%';txt.textContent=t('pdf.loading');
+  try{
+    const buf=await file.arrayBuffer();bar.style.width='30%';
+    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+    bar.style.width='50%';txt.textContent=t('pdf.reading',{n:pdf.numPages});
+    let fullText='';
+    for(let i=1;i<=pdf.numPages;i++){const p=await pdf.getPage(i);const tc=await p.getTextContent();fullText+=tc.items.map(x=>x.str).join(' ')+'\n';bar.style.width=(50+i/pdf.numPages*45)+'%'}
+    bar.style.width='100%';txt.textContent=t('pdf.searching');
+    const ex=extractTasks(fullText);
+    setTimeout(()=>{pg.classList.add('hidden');showPDFResults(ex)},250);
+  }catch(e){pg.classList.add('hidden');alert(t('pdf.error')+e.message)}
+}
+function extractTasks(text){
+  const tasks=[],seen=new Set();
+  text.split('\n').forEach(line=>{
+    const cl=line.trim();if(cl.length<4)return;
+    let fd=null;
+    let m=cl.match(/(\d{1,2})\s*\.\s*(\d{1,2})\s*\.\s*(20\d{2})/);
+    if(m)fd=`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}T23:59`;
+    if(!fd){m=cl.match(/(20\d{2})-(\d{2})-(\d{2})/);if(m)fd=`${m[1]}-${m[2]}-${m[3]}T23:59`}
+    if(!fd)return;
+    const kw=cl.match(/(odevzdat|submit|deadline|projekt|homework|úkol|assignment|exam|zkouška|prezentace|report|семинар|сдать|задание|экзамен)[^\n]*/i);
+    const name=(kw?kw[0]:cl).substring(0,80).replace(/\s+/g,' ').trim();
+    if(name.length<4||seen.has(name+fd))return;
+    seen.add(name+fd);
+    const defaultCat=tArr('defaultCats')[0]||'';
+    tasks.push({id:uid(),name:name.charAt(0).toUpperCase()+name.slice(1),desc:'PDF',deadline:fd,priority:'medium',category:defaultCat,done:false,createdAt:now()});
+  });
+  return tasks.slice(0,20);
+}
+function showPDFResults(tasks){
+  const res=document.getElementById('pdf-res'),list=document.getElementById('pdf-list');
+  list.innerHTML='';res.classList.remove('hidden');
+  const addAllBtn=document.getElementById('pdf-add-all');
+  if(!tasks.length){
+    list.innerHTML=`<div class="p-4 bg-surf-c rounded-xl text-sm text-osv">${t('pdf.noFound')}</div>`;
+    addAllBtn.classList.add('hidden');return;
+  }
+  addAllBtn.classList.remove('hidden');
+  tasks.forEach(task=>{
+    const div=document.createElement('div');
+    div.className='flex items-center gap-3 p-3 bg-surf-clo rounded-xl shadow-ambient';
+    div.innerHTML=`<div class="flex-1 min-w-0"><p class="font-semibold text-sm truncate text-os">${task.name}</p><p class="text-xs text-osv mt-0.5">${t('pdf.deadline')}${fdate(task.deadline)}</p></div>
+      <button class="pa px-3 py-1.5 text-white rounded-lg text-xs font-bold hover:opacity-90 transition-all whitespace-nowrap" style="background:#3525cd">${t('pdf.add')}</button>`;
+    div.querySelector('.pa').addEventListener('click',function(){
+      if(!S.tasks.find(x=>x.id===task.id)){S.tasks.unshift({...task});persist();renderDash();renderTasks()}
+      this.textContent=t('pdf.added');this.disabled=true;this.style.background='#006c49';
+    });
+    list.appendChild(div);
+  });
+}
+document.getElementById('pdf-add-all').addEventListener('click',()=>document.querySelectorAll('.pa:not([disabled])').forEach(b=>b.click()));
+
+// ════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════
+document.getElementById('li-email').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('li-pass').focus()});
+document.getElementById('li-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+document.getElementById('ri-pass2').addEventListener('keydown',e=>{if(e.key==='Enter')doRegister()});
+
+(function init(){
+  // Apply language first
+  applyTranslations();
+  // Hide app page
+  document.getElementById('pg-app').classList.add('hidden');
+  // Check session
+  const sess=getSession();
+  if(sess){const u=getUsers()[sess];if(u){enterApp({email:sess,name:u.name});return}}
+})();
+</script>
+</body>
+</html>
